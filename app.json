@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.hopnjob"
     },
     "web": {
       "bundler": "metro",
@@ -24,6 +25,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
+      "@maplibre/maplibre-react-native",
       [
         "expo-splash-screen",
         {
@@ -36,6 +39,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "08641ac5-62d7-4727-b139-27fc6eecfd21"
+      }
     }
   }
 }
