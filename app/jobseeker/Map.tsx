@@ -1,156 +1,165 @@
-import React, { useRef, useState, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
+// app/jobseeker/Map.tsx
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import * as Location from 'expo-location';
 import {
   MapView,
   Camera,
   ShapeSource,
-  SymbolLayer,
   CircleLayer,
-  RasterSource,
   RasterLayer,
+  RasterSource,
   Images,
-  SymbolLayerStyle,
-  CircleLayerStyle,
   setAccessToken,
   CameraRef,
+  SymbolLayer,
+  SymbolLayerStyle,
 } from '@maplibre/maplibre-react-native';
 import BottomSheet from 'react-native-gesture-bottom-sheet';
-import { FeatureCollection } from 'geojson';
 import { Ionicons } from '@expo/vector-icons';
-import { vacanciesData } from '@/src/data/vacanciesData';
 import { useRouter } from 'expo-router';
-import { useVacancyStore } from '@/src/store/useVacancyStore';
 
-/* ─────────── типы ─────────── */
-type Vacancy = {
-  id: string;
-  title: string;
-  salaryFrom: number;
-  salaryTo: number;
-  currency: '₸' | '₽' | '$';
-  period: 'месяц' | 'час';
-  experience: string;
-  employment: string;
-  schedule: string;
-  hours: number;
-  format: string;
-  tags: string[];
-};
+import SearchBox from '@/components/map/SearchBox';
+import PointCard from '@/components/map/PointCard';
+import { Vacancy } from '@/src/types/Vacancy';
+import { PointVacancies } from '@/src/types/PointVacancies';
+import { VacancyData } from '@/src/data/VacancyData';
+import { PointVacanciesData } from '@/src/data/PointVacanciesData';
 
-type CompanyPoint = {
-  id: string;
-  companyName: string;
-  coords: [number, number];
-  vacancies: Vacancy[];
-};
+import type {
+  FeatureCollection,
+  Geometry,
+  GeoJsonProperties,
+} from 'geojson';
+import Navbar from '@/components/ui/Navbar';
 
-/* ─────────── демо данные ─────────── */
 setAccessToken(null);
 
-const points: CompanyPoint[] = vacanciesData;
-
-const geojson: FeatureCollection = {
-  type: 'FeatureCollection',
-  features: points.map(({ id, coords }) => ({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: coords },
-    properties: { id, icon: 'vacancyMarker' },
-  })),
-};
-
-/* ─────────── MapLibre‑стили ─────────── */
-const clusterCircleStyle: CircleLayerStyle = {
-  circleColor: '#2E86DE',
-  circleRadius: 18,
-  circleOpacity: 0.9,
-  circleStrokeWidth: 2,
-  circleStrokeColor: '#fff',
-};
-const clusterCountStyle: SymbolLayerStyle = {
-  textField: ['get', 'point_count_abbreviated'],
-  textSize: 14,
-  textColor: '#fff',
-  textHaloColor: '#000',
-  textHaloWidth: 1,
-};
-const markerStyle: SymbolLayerStyle = {
-  iconImage: ['get', 'icon'],
-  iconSize: 0.10,
-  iconAnchor: 'bottom',
-};
-const selectedMarkerStyle: SymbolLayerStyle = {
-  iconImage: ['get', 'icon'],
-  iconSize: 0.14,
-  iconAnchor: 'bottom',
-};
-
-/* ─────────── компонент ─────────── */
-export default function VacancyMap() {
+export default function MapScreen() {
   const router = useRouter();
+
+  /* ──────────────── refs ──────────────── */
   const cameraRef = useRef<CameraRef>(null);
   const sheetRef = useRef<BottomSheet>(null);
+  const watchRef = useRef<Location.LocationSubscription | null>(null);
 
-  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
-  const [selectedVacancyId, setSelectedVacancyId] = useState<string | null>(null);
+  /* ──────────────── data ──────────────── */
+  const [vacancies, setVacancies] = useState<Vacancy[]>([]);
+  const [points, setPoints] = useState<PointVacancies[]>([]);
+  const [selectedPoint, setSelectedPoint] = useState<PointVacancies | null>(null);
 
-  /* вычисляем активные данные */
-  const selectedPoint = useMemo(
-    () => points.find(p => p.id === selectedPointId) ?? null,
-    [selectedPointId],
-  );
-  const selectedVacancy = useMemo(
-    () =>
-      selectedPoint?.vacancies.find(v => v.id === selectedVacancyId) ??
-      selectedPoint?.vacancies[0] ??
-      null,
-    [selectedPoint, selectedVacancyId],
-  );
+  /* ──────────────── user location ──────────────── */
+  const [userLoc, setUserLoc] = useState<{ lat: number; lon: number } | null>(null);
 
-  /* ───── нажатие по маркеру/кластеру ───── */
-  const handlePress = useCallback((e: any) => {
-    const f = e.features[0];
-    if (f.properties?.cluster) {
-      const [lon, lat] = f.geometry.coordinates;
-      cameraRef.current?.flyTo([lon, lat], 400);
-      cameraRef.current?.zoomTo(14, 400);
-      return;
-    }
-    setSelectedPointId(f.properties.id as string);
-    setSelectedVacancyId(null);
-    sheetRef.current?.show();
+  /* ──────────────── load static data ──────────────── */
+  useEffect(() => {
+    (async () => {
+      try {
+        setVacancies(await VacancyData);
+        setPoints(await PointVacanciesData);
+      } catch (e) {
+        console.error('Ошибка загрузки данных:', e);
+      }
+    })();
   }, []);
 
-  /* ───── карточка вакансии (горизонтальный FlatList) ───── */
-  const renderVacancy = ({ item }: { item: Vacancy }) => {
-    const active = item.id === selectedVacancy?.id;
-    return (
-      <TouchableOpacity
-        style={[styles.vacancyCard, active && styles.vacancyCardActive]}
-        onPress={() => setSelectedVacancyId(item.id)}
-      >
-        <Text style={styles.vacancyTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-      </TouchableOpacity>
-    );
+  /* ──────────────── subscription to location ──────────────── */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Доступ к геолокации отклонён');
+        return;
+      }
+      watchRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Highest,
+          timeInterval: 2000,
+          distanceInterval: 5,
+        },
+        pos => {
+          if (!mounted) return;
+          const { latitude: lat, longitude: lon } = pos.coords;
+          setUserLoc({ lat, lon });
+        }
+      );
+    })();
+
+    return () => {
+      mounted = false;
+      watchRef.current?.remove();
+    };
+  }, []);
+
+  /* ──────────────── center map on user ──────────────── */
+  const locateUser = useCallback(() => {
+    console.log('locateUser → камера к юзеру');   // 🔍 ➊
+
+    if (!userLoc) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [userLoc.lon, userLoc.lat],
+      duration: 500,
+    });
+  }, [userLoc]);
+
+  /* ──────────────── geojson for vacancies ──────────────── */
+  const geojson: FeatureCollection<Geometry, GeoJsonProperties> = useMemo(
+    () => ({
+      type: 'FeatureCollection',
+      features: points.map(({ id, coords, vacancies }) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: coords },
+        properties: { id, vacancies, icon: 'vacancyMarker' },
+      })),
+    }),
+    [points],
+  );
+
+  /* ──────────────── handle cluster / point press ──────────────── */
+  const handlePress = useCallback(
+    (e: any) => {
+      const f = e.features[0];
+      if (f.properties?.cluster) {
+        const [lon, lat] = f.geometry.coordinates;
+        cameraRef.current?.flyTo([lon, lat], 400);
+        cameraRef.current?.zoomTo(14, 400);
+        return;
+      }
+      setSelectedPoint(points.find(p => p.id === f.properties.id) ?? null);
+      sheetRef.current?.show();
+    },
+    [points],
+  );
+
+  const closeBottomSheet = () => {
+    setSelectedPoint(null);
+    sheetRef.current?.close();
   };
 
-  const BottomSheetClose = () => {
-    setSelectedPointId(null);
-    setSelectedVacancyId(null);
-    sheetRef.current?.close()
-  }
+  /* ──────────────── search box handler ──────────────── */
+  const handlePlaceSelect = (lon: number, lat: number) => {
+    cameraRef.current?.setCamera({
+      centerCoordinate: [lon, lat],
+      zoomLevel: 12,          // нужный масштаб
+      animationDuration: 700, // длительность
+    });
+  };
 
-  /* ───── JSX ───── */
   return (
     <View style={styles.container}>
-      <MapView style={styles.map}>
+      <SearchBox onSelect={handlePlaceSelect} />
+
+      {/* locate button */}
+      <TouchableOpacity
+        style={[styles.fab, { bottom: 100 }]}
+        onPress={locateUser}
+      >
+        <Ionicons name="locate" size={28} />
+      </TouchableOpacity>
+
+      <MapView style={styles.map} compassEnabled={false} rotateEnabled={false}>
+        {/* OSM tiles */}
         <RasterSource
           id="osm"
           tileUrlTemplates={['https://tile.openstreetmap.org/{z}/{x}/{y}.png']}
@@ -159,16 +168,18 @@ export default function VacancyMap() {
           <RasterLayer id="osmLayer" sourceID="osm" />
         </RasterSource>
 
+        {/* camera */}
         <Camera
           ref={cameraRef}
           defaultSettings={{
             centerCoordinate: [37.618423, 55.751244],
             zoomLevel: 11,
+            heading: 0,
           }}
         />
 
+        {/* vacancy clusters & markers */}
         <Images images={{ vacancyMarker: require('../../assets/marker.png') }} />
-
         <ShapeSource
           id="vacancies"
           shape={geojson}
@@ -179,114 +190,94 @@ export default function VacancyMap() {
           <CircleLayer id="cluster" filter={['has', 'point_count']} style={clusterCircleStyle} />
           <SymbolLayer id="clusterTxt" filter={['has', 'point_count']} style={clusterCountStyle} />
           <SymbolLayer id="points" filter={['!', ['has', 'point_count']]} style={markerStyle} />
-          {selectedPointId && (
+          {selectedPoint && (
             <SymbolLayer
               id="selectedPoint"
               aboveLayerID="points"
-              filter={['==', ['get', 'id'], selectedPointId]}
+              filter={['==', ['get', 'id'], selectedPoint.id]}
               style={selectedMarkerStyle}
             />
           )}
         </ShapeSource>
+
+        {/* user location marker */}
+        {userLoc && (
+          <ShapeSource
+            id="userLocation"
+            shape={{
+              type: 'FeatureCollection',
+              features: [
+                {
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: [userLoc.lon, userLoc.lat] },
+                },
+              ],
+            }}
+          >
+            <CircleLayer
+              id="userDot"
+              style={{
+                circleRadius: 6,
+                circleColor: '#007AFF',
+                circleStrokeColor: '#fff',
+                circleStrokeWidth: 2,
+              }}
+            />
+          </ShapeSource>
+        )}
       </MapView>
 
-      {/* ───── BottomSheet ───── */}
-      <BottomSheet ref={sheetRef} height={420} radius={16} onClose={BottomSheetClose}>
-        {selectedPoint && selectedVacancy && (
-          <View style={styles.sheet}>
-            {/* header */}
-            <View style={styles.header}>
-              <Text style={styles.company}>{selectedPoint.companyName}</Text>
-              <TouchableOpacity onPress={() => sheetRef.current?.close()} style={styles.closeBtn}>
-                <Ionicons name="close" size={24} color="#555" />
-              </TouchableOpacity>
-            </View>
-
-            {/* scroll list */}
-            {selectedPoint.vacancies.length > 1 && (
-              <>
-                <FlatList
-                  data={selectedPoint.vacancies}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8 }}
-                  renderItem={renderVacancy}
-                  keyExtractor={v => v.id}
-                />
-                <View style={styles.separator} />
-              </>
-            )}
-
-            {/* details */}
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>Должность: </Text>{selectedVacancy.title}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>З/п: </Text>
-              {selectedVacancy.salaryFrom.toLocaleString()}–{selectedVacancy.salaryTo.toLocaleString()}
-              {selectedVacancy.currency} / {selectedVacancy.period}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>Опыт: </Text>{selectedVacancy.experience}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>Занятость: </Text>{selectedVacancy.employment}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>График: </Text>{selectedVacancy.schedule}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>Формат: </Text>{selectedVacancy.format}
-            </Text>
-            <Text style={styles.detailRow}>
-              <Text style={styles.bold}>Теги: </Text>{selectedVacancy.tags.join(', ')}
-            </Text>
-
-            <TouchableOpacity
-              style={styles.moreBtn}
-              onPress={() => {
-                sheetRef.current?.close();
-                useVacancyStore.getState().setVacancy(selectedVacancy);
-                router.push('/jobseeker/VacancyDetail');
-              }}
-            >
-              <Text style={styles.moreBtnTxt}>Перейти к вакансии</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+      <BottomSheet
+        ref={sheetRef}
+        height={350}
+        radius={16}
+        onClose={closeBottomSheet}
+      >
+        <PointCard point={selectedPoint} onClose={closeBottomSheet} />
       </BottomSheet>
+      <Navbar />
     </View>
   );
 }
 
-/* ─────────── стили ─────────── */
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-
-  sheet: { padding: 16, gap: 10 },
-  header: { flexDirection: 'row', alignItems: 'center' },
-  company: { flex: 1, fontSize: 20, fontWeight: '700' },
-  closeBtn: { padding: 6, backgroundColor: '#e5e5e5', borderRadius: 18 },
-  separator: { height: 1, backgroundColor: '#ddd', marginVertical: 6 },
-
-  vacancyCard: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f4f4f4',
+  fab: {
+    position: 'absolute',
+    right: 24,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 6,
+    elevation: 4,
+    zIndex: 10,
   },
-  vacancyCardActive: { borderWidth: 2, borderColor: '#2E86DE' },
-  vacancyTitle: { color: '#000', fontSize: 13, maxWidth: 160 },
-  bold: { fontWeight: '600' },
-  detailRow: { fontSize: 14 },
-
-  moreBtn: {
-    marginTop: 8,
-    backgroundColor: '#2E86DE',
-    borderRadius: 8,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  moreBtnTxt: { color: '#fff', fontWeight: '600' },
 });
+
+const clusterCircleStyle = {
+  circleColor: '#2E86DE',
+  circleRadius: 18,
+  circleOpacity: 0.9,
+  circleStrokeWidth: 2,
+  circleStrokeColor: '#fff',
+};
+
+const clusterCountStyle: SymbolLayerStyle = {
+  textField: ['get', 'point_count_abbreviated'] as any,
+  textSize: 14,
+  textColor: '#fff',
+  textHaloColor: '#000',
+  textHaloWidth: 1,
+};
+
+const markerStyle: SymbolLayerStyle = {
+  iconImage: ['get', 'icon'] as any,
+  iconSize: 0.12,
+  iconAnchor: 'bottom',
+};
+
+const selectedMarkerStyle: SymbolLayerStyle = {
+  iconImage: ['get', 'icon'] as any,
+  iconSize: 0.14,
+  iconAnchor: 'bottom',
+};

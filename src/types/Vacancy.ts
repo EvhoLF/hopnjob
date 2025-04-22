@@ -1,16 +1,11 @@
-type Vacancy = {
+export interface Vacancy {
   id: string;
-  title: string;
+  companyId: string;
+  label: string;
   salaryFrom: number;
   salaryTo: number;
   currency: '₸' | '₽' | '$';
-  period: 'месяц' | 'час';
-  experience: string;
-  employment: string;
-  schedule: string;
-  hours: number;
-  format: string;
-  tags: string[];
-};
-
-export default Vacancy;
+  unit: 'hour' | 'day' | 'month';
+  experience: string | null;
+  tags: string[]
+}
