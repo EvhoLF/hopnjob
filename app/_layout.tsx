@@ -1,35 +1,23 @@
-import { Tabs, Stack } from 'expo-router';
-import { useAuthStore } from '@/src/store/useAuthStore';
+import { AuthProvider } from '@/src/contexts/AuthContext';
+import { Tabs, Stack, usePathname } from 'expo-router';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// import { useAuthStore } from '@/src/store/useAuthStore';
 
 export default function RootLayout() {
-  const role = useAuthStore((s) => s.user?.role);
+  const pathname = usePathname();
+  const isFullScreen = pathname === '/jobseeker/Map';
 
-  if (!role) {
-    // до авторизации показываем простой стек логина
-    return (
-      <Stack>
-        <Stack.Screen name="auth/login" options={{ headerShown: false }} />
-      </Stack>
-    );
-  }
+  const Container = isFullScreen ? View : SafeAreaView;
+  // const role = useAuthStore((s) => s.user?.role);
 
-  // Job Seeker вкладки
-  if (role === 'jobseeker') {
-    return (
-      <Tabs screenOptions={{ headerShown: false }}>
-        <Tabs.Screen name="jobseeker/Map" options={{ title: 'Jobs' }} />
-        <Tabs.Screen name="jobseeker/ChatList" options={{ title: 'Chats' }} />
-        <Tabs.Screen name="jobseeker/Profile" options={{ title: 'Profile' }} />
-      </Tabs>
-    );
-  }
-
-  // Employer вкладки
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="employer/Candidates" options={{ title: 'Candidates' }} />
-      <Tabs.Screen name="employer/VacancyList" options={{ title: 'My Jobs' }} />
-      <Tabs.Screen name="employer/CompanyProfile" options={{ title: 'Company' }} />
-    </Tabs>
-  );
+    <AuthProvider>
+      <Container style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          {/* …все экраны работодателя… */}
+        </Stack>
+      </Container>
+    </AuthProvider>
+  )
 }

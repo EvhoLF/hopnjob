@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
-export default function Home() {
+export default function Index() {
   const router = useRouter();
   return (
     <View style={styles.container}>
@@ -16,7 +16,7 @@ export default function Home() {
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.button, styles.buttonSecondary]}
-        onPress={() => router.push('/login?role=employer')}
+        onPress={() => router.push('/auth/SignIn')}
       >
         <Text style={styles.buttonText}>Найти сотрудников</Text>
       </TouchableOpacity>

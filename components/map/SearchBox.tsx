@@ -12,6 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Suggestion = { id: string; name: string; lon: number; lat: number };
 interface Props { onSelect: (lon: number, lat: number, label: string) => void }
@@ -80,6 +81,45 @@ const SearchBox = memo(({ onSelect }: Props) => {
     setQuery('');
   }
 
+  const insets = useSafeAreaInsets();
+  /* ───── styles ───── */
+  const styles = StyleSheet.create({
+    wrapper: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 100,          // ← главный фикс
+    },
+    backdrop: {
+      position: 'absolute',
+      top: 0, left: 0,
+      width: W, height: H,
+      backgroundColor: 'transparent',
+      zIndex: 1,
+    },
+    box: {
+      position: 'absolute',
+      top: insets.top + 12, left: 12, right: 12,
+      gap: 5,
+      zIndex: 2,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      elevation: 3,
+    },
+    input: { flex: 1, fontSize: 16, paddingVertical: 6 },
+    icon: { padding: 6 },
+    dropdown: {
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      elevation: 2,
+      maxHeight: 200,
+    },
+    suggestion: { paddingVertical: 8, paddingHorizontal: 12 },
+  });
+
   /* ───── render ───── */
   return (
     <View style={styles.wrapper} pointerEvents="box-none">
@@ -140,40 +180,4 @@ const SearchBox = memo(({ onSelect }: Props) => {
 
 export default SearchBox;
 
-/* ───── styles ───── */
-const styles = StyleSheet.create({
-  wrapper: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 100,          // ← главный фикс
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0, left: 0,
-    width: W, height: H,
-    backgroundColor: 'transparent',
-    zIndex: 1,
-  },
-  box: {
-    position: 'absolute',
-    top: 12, left: 12, right: 12,
-    gap: 5,
-    zIndex: 2,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    elevation: 3,
-  },
-  input: { flex: 1, fontSize: 16, paddingVertical: 6 },
-  icon: { padding: 6 },
-  dropdown: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    elevation: 2,
-    maxHeight: 200,
-  },
-  suggestion: { paddingVertical: 8, paddingHorizontal: 12 },
-});
+

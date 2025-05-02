@@ -1,56 +1,53 @@
-import React, { useEffect } from 'react';
-import { Text, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useVacancyStore } from '@/src/store/useVacancyStore';
+import VacancyDetailCard from '@/components/Vacancy/VacancyDetailCard';
+import { VacancyData } from '@/src/data/VacancyData';
+import { Vacancy } from '@/src/types/Vacancy';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
-export default function VacancyDetails() {
-  const { selectedVacancy } = useVacancyStore();
-  const router = useRouter();
+const JobDetailScreen = () => {
+  const { id } = useLocalSearchParams(); // получить id из параметров
+  const [vacancy, setVacancy] = useState<Vacancy | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!selectedVacancy) router.replace('/jobseeker/Map');
-  }, [selectedVacancy]);
+    const fetchVacancy = async () => {
+      try {
+        // Здесь сделай свой реальный запрос, например fetch(`https://api.myapp.com/vacancy/${id}`)
+        const response = await VacancyData.find(e => e.id == id);
+        setVacancy(response ?? null);
+      } catch (error) {
+        console.error('Ошибка при загрузке вакансии:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (!selectedVacancy) return null;
+    if (id) {
+      fetchVacancy();
+    }
+  }, [id]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+  if (!vacancy) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Вакансия не найдена.</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{selectedVacancy.title}</Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Зарплата: </Text>
-        {selectedVacancy.salaryFrom.toLocaleString()}–{selectedVacancy.salaryTo.toLocaleString()}{selectedVacancy.currency} / {selectedVacancy.period}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Опыт: </Text>
-        {selectedVacancy.experience}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Занятость: </Text>
-        {selectedVacancy.employment}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>График: </Text>
-        {selectedVacancy.schedule}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Формат: </Text>
-        {selectedVacancy.format}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Рабочие часы: </Text>
-        {selectedVacancy.hours}
-      </Text>
-      <Text style={styles.row}>
-        <Text style={styles.label}>Технологии: </Text>
-        {selectedVacancy.tags.join(', ')}
-      </Text>
+    <ScrollView>
+      <VacancyDetailCard vacancy={vacancy} loading={loading} />
     </ScrollView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 8 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
-  row: { fontSize: 16 },
-  label: { fontWeight: '600' },
-});
+export default JobDetailScreen;

@@ -15,7 +15,7 @@ const { width } = Dimensions.get('window');
 const routes = [
   { path: '/home', icon: 'home-outline', label: 'Home' },
   { path: '/messages', icon: 'chatbubble-outline', label: 'Messages' },
-  { path: '/profile', icon: 'person-outline', label: 'Profile' },
+  { path: '/auth/Profile', icon: 'person-outline', label: 'Profile' },
   { path: '/search', icon: 'search-outline', label: 'Search' },
   { path: '/settings', icon: 'settings-outline', label: 'Settings' },
 ];
